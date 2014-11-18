@@ -1,12 +1,15 @@
-%% PnP Localizer
-%  TO DO
-%  -Add options flag. (mat file name, screen max or min, etc.)
-%  -Add COV maker
-%  -print number of volumes?
-%  -cross color
-%  -cross during whitespace
-%  -button explanation
-%  -Task description higher on screen
+%% Scene Task Practice Task
+%  Training & Practice task for Scene Task experiment. Designed to be run
+%  in fMRI with Eye Tracking.
+%
+%  This script and all related files are created by and for the Dilks Lab
+%  and may not be used, reproduced, or replicated without express
+%  permission. Please contact Sam Weiller at sam.weiller@gmail.com with
+%  any questions.
+
+%% History
+%  5.10     11/18/14    Added comments
+
 function [SCTASK] = runSceneTask_ET_fMRI(sub, cbl, acq)
 %% Start me up
 clc
@@ -22,14 +25,14 @@ if ~exist(PATH, 'file');
 end
 load(PATH);
 
-pause(.8);
+pause(.2);
 fprintf('Scene Task\n');
-pause(.7);
-fprintf('  Version 4.00\n');
-fprintf('  Oct. 29, 2014\n');
-pause(.4);
+pause(.1);
+fprintf('  Version 5.10\n');
+fprintf('  Nov. 18, 2014\n');
+pause(.1);
 fprintf('Sam Weiller & Greg Adler\n');
-pause(.5);
+pause(.3);
 clc
 
 %% Control Panel
@@ -46,6 +49,7 @@ else
     return;
 end;
 
+% Defines condition order
 designs = [...
     0 1 0 2 0 3 0 2 0 3 0 1 0 3 0 2 0 1 0;
     0 2 0 1 0 3 0 3 0 1 0 2 0 1 0 3 0 2 0;
@@ -59,13 +63,11 @@ designs = [...
     0 1 0 2 0 3 0 2 0 1 0 3 0 2 0 3 0 1 0
     ];
 
-fixCovariate = max(max(designs)) + 1;          % Defines a non-zero covariate number for fixation covariate files.
 numStimSets = size(STIMS,2);
 imgsPerSet = size(STIMS{1},2);
 numBlocks = max(max(size(designs)));
 imagesPerBlock = 16;
 totalImages = 36;
-% numberOfTargets = 2;
 fixationTime = 10;
 KbName('UnifyKeyNames');
 % FOR BEHAVORIAL, USE THESE
@@ -94,7 +96,6 @@ originalStimSize.vertical   = 784;
 
 stimSize.horizontal = visualAngle;
 stimSize.vertical = (stimSize.horizontal*originalStimSize.vertical)/originalStimSize.horizontal;
-
 
 stimPresentTime = .5;
 ISITime = 1.00;
@@ -126,7 +127,7 @@ while ~valid
     end;
 end;
 
-%% PTB Setup & EyeLink Setup
+%% PTB Setup
 Screen('Preference', 'SkipSyncTests', 2);
 [w, ~, xMid, yMid] = startPTB(screenNumber, 1, [50 50 50]);
 HideCursor;
@@ -136,6 +137,7 @@ HideCursor;
 fixBoxSize = 2*PPD; % 2 degrees
 fixBox = [round(xMid - fixBoxSize/2), round(yMid - fixBoxSize/2), round(xMid + fixBoxSize/2), round(yMid + fixBoxSize/2)];
 
+%% Eyelink Setup
 el = EyelinkInitDefaults(w);
 
 if ~EyelinkInit(dummymode)
@@ -190,7 +192,7 @@ ANSMAT = cell(numBlocks, 1);
 
 for set = 1:numStimSets
     for img = 1:imgsPerSet
-        %Making the cell array
+        % Making the cell array
         tex{set}{img} = Screen('MakeTexture', w, STIMS{set}{img});
     end;
 end;
@@ -219,15 +221,11 @@ for block = 1:numBlocks
     blockStart = GetSecs;
     timeLogger.block(block).blockStart = GetSecs - expStart;
     timeLogger.block(block).conditionN = conditionOrder(block);
-
-    eye_used = pref_eye;
     
     if conditionOrder(block) == 0
-        
-        Eyelink('message', 'TRIALID %d', eyeLinkTrial);
+        Eyelink('message', 'TRIALID %d', eyeLinkTrial); % Start EL trial
         realTimeExpected = realTimeExpected + fixationTime;
         cpuTimeExpected = cpuTimeExpected + fixationTime;
-        
         
         fixate(w);
         while GetSecs <= cpuTimeExpected - taskPresentationTime
@@ -237,39 +235,27 @@ for block = 1:numBlocks
         if block ~= numBlocks
             DrawFormattedText(w, taskNames{conditionOrder(block + 1)}, 'center', 'center');
             Screen('Flip', w);
+            % Displays button mappings for all but final block.
         end;
         
         while GetSecs <= cpuTimeExpected
             % finish waiting
         end;
-%         WaitSecs(0.1);
-%         Eyelink('StopRecording');
-        Eyelink('message', 'TRIAL_RESULT 0');
+        
+        Eyelink('message', 'TRIAL_RESULT 0'); % End Eyelink Trial
         eyeLinkTrial = eyeLinkTrial + 1;
-        
-        isStarted = 0;
-        
     else
-        
         tLstart = GetSecs;
-        
         imageMatrix = randsample(totalImages, imagesPerBlock);
         
         for trial = 1:imagesPerBlock
-%             bufferStart = GetSecs;
-%             Eyelink('Command', 'set_idle_mode');
-%             WaitSecs(0.05);  
-%             Eyelink('StartRecording');    
-%             WaitSecs(0.1);
-            Eyelink('message', 'TRIALID %d', eyeLinkTrial);
+            Eyelink('message', 'TRIALID %d', eyeLinkTrial); % Start EL trial
             Eyelink('message', '!V CLEAR 128 128 128');
             Eyelink('command', 'record_status_message "TRIAL %d / %d"', eyeLinkTrial, ((numBlocks-1)/2)*(imagesPerBlock+1));
             WaitSecs(0.05);
             Eyelink('message', '!V DRAWBOX 0 0 0 %d %d %d %d', fixBox(1), fixBox(2), fixBox(3), fixBox(4));
             Eyelink('message', '!V IAREA RECTANGLE 1 %d %d %d %d FIXAREA', fixBox(1), fixBox(2), fixBox(3), fixBox(4));
-            
-%             bufferTime = GetSecs - bufferStart;
-            
+                        
             touch = 0;
             
             timeLogger.block(block).trial(trial).start = GetSecs-tLstart;
