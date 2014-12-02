@@ -9,6 +9,7 @@
 
 %% History
 %  5.10     11/18/14    Added comments
+%  6.00     12/02/14    Changed KbCheck to PsychHID('KbQueueCheck')
 
 function [SCTASK] = runSceneTask_ET_fMRI(sub, cbl, acq)
 %% Start me up
@@ -28,7 +29,7 @@ load(PATH);
 pause(.2);
 fprintf('Scene Task\n');
 pause(.1);
-fprintf('  Version 5.10\n');
+fprintf('  Version 6.00\n');
 fprintf('  Nov. 18, 2014\n');
 pause(.1);
 fprintf('Sam Weiller & Greg Adler\n');
@@ -48,6 +49,14 @@ else
     fprintf('Please run makeStims first.\n');
     return;
 end;
+
+fprintf('\nDefining PsychHID Parameters...\n');
+fprintf('Please choose an input source from the options below.\n');
+attachedDevices = PsychHID('Devices');
+for HID = 1:PsychHID('NumDevices');
+    fprintf('%d. %s, %s\n', HID, attachedDevices(HID).usageName, attachedDevices(HID).product);
+end;
+chosenKeyboard = input('? ');
 
 % Defines condition order
 designs = [...
@@ -276,40 +285,50 @@ for block = 1:numBlocks
             Eyelink('message', 'BEGIN IMAGE PRESENTATION');
             Eyelink('Message', '!V IMGLOAD CENTER ./images/%s %d %d %d %d', STIMNAMES{TRIMAT(imageMatrix(trial), 3)}{TRIMAT(imageMatrix(trial), 2)}, round(width/2), round(height/2), round(stimSize.horizontal), round(stimSize.vertical));
             
-            while GetSecs <= stimEnd   %checks for keypress during stim presentation
-                [touch, ~, keyCode] = KbCheck(-1);
-                if touch && ~keyCode(triggerKey)
-                    UserAns = find(keyCode);
-                    moveOn = 1;
-                    break;
-                end;
-            end;
+            PsychHID('KbQueueCreate', chosenKeyboard);
+            PsychHID('KbQueueStart', chosenKeyboard);
+            
+%             while GetSecs <= stimEnd   %checks for keypress during stim presentation
+%                 [touch, ~, keyCode] = KbCheck(-1);
+%                 if touch && ~keyCode(triggerKey)
+%                     UserAns = find(keyCode);
+%                     moveOn = 1;
+%                     break;
+%                 end;
+%             end;
             
             while GetSecs <= stimEnd
             end;
             
 %             Eyelink('message', 'BEGIN FIXATION TIME');
-            t1t = GetSecs;
+%             t1t = GetSecs;
             fixation(w);
             Screen('Flip', w);
             timeLogger.block(block).trial(trial).imageEnd = GetSecs-tLstart;
-            t2t = GetSecs - t1t
+            %             t2t = GetSecs - t1t
             
             
             
-            if moveOn == 0
-                fprintf('HitIt\n');
-                while GetSecs < cpuTimeExpected-.02   %checks for keypress in fixation immediately following stim pres up until next stim pres.
-                    [touch, ~, keyCode] = KbCheck(-1);
-                    if touch && ~keyCode(triggerKey)
-                        UserAns = find(keyCode);
-                        moveOn = 1;
-                        break;
-                    end;
-                end;
+            %             if moveOn == 0
+            %                 fprintf('HitIt\n');
+            %                 while GetSecs < cpuTimeExpected-.02   %checks for keypress in fixation immediately following stim pres up until next stim pres.
+            %                     [touch, ~, keyCode] = KbCheck(-1);
+            %                     if touch && ~keyCode(triggerKey)
+            %                         UserAns = find(keyCode);
+            %                         moveOn = 1;
+            %                         break;
+            %                     end;
+            %                 end;
+            %             end;
+            %
+            %             moveOn = 0;
+
+            
+            while GetSecs < cpuTimeExpected-.02
+                % Wait out reamining trial time
             end;
             
-            moveOn = 0;
+            [~, buttonsPressed] = PsychHID('KbQueueCheck', chosenKeyboard);
             
             while GetSecs <= cpuTimeExpected
                 if ~loggingIsDone
@@ -353,35 +372,32 @@ for block = 1:numBlocks
                             Eyelink('message', '!V TRIAL_VAR COLOR ERROR');
                     end;
                     
-                    fprintf('User Response: %d\n', UserAns);
-                    
-                    if length(UserAns) == 2
-                        kp = find(UserAns == 23);
-                        if kp == 1
-                            UserAns = UserAns(2);
-                        elseif kp == 2
-                            UserAns = UserAns(1);
-                        else
-                            UserAns = 99;
-                        end;
+                    buttonIndices = find(buttonsPressed);
+                    if size(buttonIndices, 2) > 2
+                        UserAns = 0;
                     else
-                        switch UserAns % User Response
-                            case choice1key
-                                ANSMAT{block}(trial, 6) = 1;
-                            case choice2key
-                                ANSMAT{block}(trial, 6) = 2;
-                            case choice3key
-                                ANSMAT{block}(trial, 6) = 3;
-                            case escapeKey
-                                SCTASK.ANSMAT = ANSMAT;
-                                save(PATH, 'SCTASK', 'timeLogger');
-                                Screen('CloseAll');
-                                return;
-                            otherwise
-                                ANSMAT{block}(trial, 6) = 0;
-                        end;
+                        UserAns = buttonIndices(find(buttonIndices~=triggerKey));
                     end;
                     
+                    fprintf('User Response: %d\n', UserAns);
+                    
+                    
+                    switch UserAns % User Response
+                        case choice1key
+                            ANSMAT{block}(trial, 6) = 1;
+                        case choice2key
+                            ANSMAT{block}(trial, 6) = 2;
+                        case choice3key
+                            ANSMAT{block}(trial, 6) = 3;
+                        case escapeKey
+                            SCTASK.ANSMAT = ANSMAT;
+                            save(PATH, 'SCTASK', 'timeLogger');
+                            Screen('CloseAll');
+                            return;
+                        otherwise
+                            ANSMAT{block}(trial, 6) = 0;
+                    end;
+                
                     fprintf('ANSMAT Log: %d\n', ANSMAT{block}(trial, 6));
                     
                     switch conditionOrder(block) % correct/incorrect
