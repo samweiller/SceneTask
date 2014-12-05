@@ -10,6 +10,10 @@
 %% History
 %  5.10     11/18/14    Added comments
 %  6.00     12/02/14    Changed KbCheck to PsychHID('KbQueueCheck')
+%  6.10     12/05/14    issue was if no buttons were pressed (or if kbqueue
+%                       was not reading presses), UserAns came out as an
+%                       empty matrix. Added in a line for:
+%                       ?if isempty(UserAns), UserAns = 0;?
 
 function [SCTASK] = runSceneTask_ET_fMRI(sub, cbl, acq)
 %% Start me up
@@ -29,7 +33,7 @@ load(PATH);
 pause(.2);
 fprintf('Scene Task\n');
 pause(.1);
-fprintf('  Version 6.00\n');
+fprintf('  Version 6.10\n');
 fprintf('  Nov. 18, 2014\n');
 pause(.1);
 fprintf('Sam Weiller & Greg Adler\n');
@@ -373,10 +377,15 @@ for block = 1:numBlocks
                     end;
                     
                     buttonIndices = find(buttonsPressed);
-                    if size(buttonIndices, 2) > 2
+                    
+                    if size(buttonIndices, 2) >2
                         UserAns = 0;
                     else
                         UserAns = buttonIndices(find(buttonIndices~=triggerKey));
+                    end;
+                    
+                    if isempty(UserAns)
+                        UserAns = 0;
                     end;
                     
                     fprintf('User Response: %d\n', UserAns);
