@@ -492,6 +492,8 @@ for block = 1:numBlocks
     end;
 end;
 
+fprintf('\nExperiment Complete!\n');
+
 function [w, rect, xc, yc] = startPTB(screenNumber, oGl, color)
 
 if nargin == 0
