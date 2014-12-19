@@ -13,7 +13,9 @@
 %  6.10     12/05/14    issue was if no buttons were pressed (or if kbqueue
 %                       was not reading presses), UserAns came out as an
 %                       empty matrix. Added in a line for:
-%                       ?if isempty(UserAns), UserAns = 0;?
+%                       "if isempty(UserAns), UserAns = 0;"
+%  6.20     12/19/14    Fixed issue with button presses where if two
+%                       buttons were pressed without a t script would crash
 
 function [SCTASK] = runSceneTask_ET_fMRI(sub, cbl, acq)
 %% Start me up
@@ -33,8 +35,8 @@ load(PATH);
 pause(.2);
 fprintf('Scene Task\n');
 pause(.1);
-fprintf('  Version 6.10\n');
-fprintf('  Nov. 18, 2014\n');
+fprintf('  Version 6.20\n');
+fprintf('  Dec. 19, 2014\n');
 pause(.1);
 fprintf('Sam Weiller & Greg Adler\n');
 pause(.3);
@@ -210,6 +212,17 @@ for set = 1:numStimSets
     end;
 end;
 
+currentExpectedTime = GetSecs;
+for i = 1:5
+    currentExpectedTime = currentExpectedTime + 500;
+    Screen('DrawTexture', w, tex{randsample(nnumStimSets, 1)}{randsample(imgsPerSet)}, [], [xMid-(stimSize.horizontal/2) yMid-(stimSize.vertical/2) xMid+(stimSize.horizontal/2) yMid+(stimSize.vertical/2)]);
+    Screen('Flip', w);
+    
+    while GetSecs < currentExpectedTime
+    end;
+end;
+
+
 DrawFormattedText(w, 'Waiting for trigger...', 'center', 'center');
 Screen('Flip', w);
 trigger(triggerKey);
@@ -332,7 +345,7 @@ for block = 1:numBlocks
                 % Wait out reamining trial time
             end;
             
-            [~, buttonsPressed] = PsychHID('KbQueueCheck', chosenKeyboard);
+            [~, buttonsPressed, timeStamps] = PsychHID('KbQueueCheck', chosenKeyboard);
             
             while GetSecs <= cpuTimeExpected
                 if ~loggingIsDone
@@ -376,17 +389,35 @@ for block = 1:numBlocks
                             Eyelink('message', '!V TRIAL_VAR COLOR ERROR');
                     end;
                     
-                    buttonIndices = find(buttonsPressed);
+                    buttonResponses(:, 1) = find(timeStamps);
+                    buttonResponses(:, 2) = queueStartTime - timeStamps(find(timeStamps));
                     
-                    if size(buttonIndices, 2) >2
-                        UserAns = 0;
-                    else
-                        UserAns = buttonIndices(find(buttonIndices~=triggerKey));
+                    buttonResponses = sortrows(buttonResponses, 2);
+                    
+                    for buttonIndex = 1:size(buttonResponses, 1)
+                        if buttonResponses(buttonIndex, 1) ~= triggerKey
+                            UserAns = buttonResponses(buttonIndex, 1);
+                            break;
+                        end;
+                        
+                        if buttonIndex == size(buttonResponses, 1)
+                            UserAns = 0;
+                        end;
+                        
+                        
                     end;
                     
-                    if isempty(UserAns)
-                        UserAns = 0;
-                    end;
+% %                     buttonIndices = find(buttonsPressed);
+%                     
+%                     if size(buttonIndices, 2) > 2
+%                         UserAns = 0;
+%                     else
+%                         UserAns = buttonIndices(find(buttonIndices~=triggerKey));
+%                     end;
+%                     
+%                     if isempty(UserAns)
+%                         UserAns = 0;
+%                     end;
                     
                     fprintf('User Response: %d\n', UserAns);
                     
